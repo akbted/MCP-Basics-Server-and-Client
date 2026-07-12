@@ -1,0 +1,8 @@
+mcp[cli]
+prompt-toolkit # To build interactive command-line applications and full-screen Terminal User Interfaces
+python-dotenv
+huggingface_hub
+langchain_huggingface
+langchain-openrouter
+langchain
+langchain-mcp-adapters

@@ -1,0 +1,4 @@
+.env
+.venv
+outputs/project_details.json
+__pycache__/
