@@ -1,1 +1,1 @@
-# MCP-Basics-Server-and-Client-
+# MCP-Basics-Server-and-Client
