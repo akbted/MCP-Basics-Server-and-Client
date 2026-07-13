@@ -2,3 +2,4 @@
 .venv
 outputs/project_details.json
 __pycache__/
+curl.md

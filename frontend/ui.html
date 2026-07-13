@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MCP Agent Workspace & Protocol Inspector</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    .mono-font {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    /* Custom Scrollbar for sleek UI */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+    /* Typing indicator animation */
+    .dot-flashing {
+      position: relative;
+      width: 6px;
+      height: 6px;
+      border-radius: 5px;
+      background-color: #3b82f6;
+      color: #3b82f6;
+      animation: dot-flashing 1s infinite linear alternate;
+      animation-delay: 0.5s;
+    }
+    .dot-flashing::before, .dot-flashing::after {
+      content: "";
+      display: inline-block;
+      position: absolute;
+      top: 0;
+    }
+    .dot-flashing::before {
+      left: -12px;
+      width: 6px;
+      height: 6px;
+      border-radius: 5px;
+      background-color: #3b82f6;
+      color: #3b82f6;
+      animation: dot-flashing 1s infinite linear alternate;
+      animation-delay: 0s;
+    }
+    .dot-flashing::after {
+      left: 12px;
+      width: 6px;
+      height: 6px;
+      border-radius: 5px;
+      background-color: #3b82f6;
+      color: #3b82f6;
+      animation: dot-flashing 1s infinite linear alternate;
+      animation-delay: 1s;
+    }
+    @keyframes dot-flashing {
+      0% { background-color: #3b82f6; }
+      50%, 100% { background-color: #e2e8f0; }
+    }
+  </style>
+</head>
+<body class="bg-slate-50/60 text-slate-800 h-screen overflow-hidden flex flex-col">
+
+  <!-- Top Navigation Header -->
+  <header class="bg-white border-b border-slate-200/80 px-6 py-4 flex items-center justify-between shrink-0">
+    <div class="flex items-center gap-3">
+      <!-- MCP Connected Logo Icon -->
+      <div class="h-9 w-9 bg-indigo-50 border border-indigo-200 text-indigo-600 rounded-lg flex items-center justify-center shadow-sm">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M14.25 9.75L16.5 12l-2.25 2.25m-4.5 0L7.5 12l2.25-2.25M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z" />
+        </svg>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="font-bold text-slate-900 tracking-tight text-lg">MCP Agent Portal</h1>
+          <span class="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/10 gap-1.5">
+            <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            Host Active
+          </span>
+        </div>
+        <p class="text-xs text-slate-500">Model Context Protocol v1.0.4 Client Sandbox</p>
+      </div>
+    </div>
+    
+    <!-- Header Right Controls -->
+    <div class="flex items-center gap-3">
+      <button onclick="toggleSetupModal(true)" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200/80 text-slate-700 font-medium text-xs rounded-lg transition-colors border border-slate-200">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor" class="w-3.5 h-3.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        </svg>
+        Register MCP Element
+      </button>
+      <button onclick="clearWorkspace()" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-slate-500 hover:text-slate-800 font-medium text-xs rounded-lg hover:bg-slate-100 transition-all">
+        Reset Workspace
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Grid Workspace -->
+  <main class="flex-1 flex overflow-hidden">
+    
+    <!-- Left Navigation Sidebar: Resources & Server Status -->
+    <aside class="w-80 border-r border-slate-200/80 bg-white/70 backdrop-blur-sm flex flex-col hidden lg:flex">
+      
+      <!-- Connected MCP Servers Section -->
+      <div class="p-4 border-b border-slate-200/80">
+        <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Connected MCP Servers</h3>
+        <div class="space-y-2.5" id="server-list">
+          <!-- Servers injected programmatically -->
+        </div>
+      </div>
+
+      <!-- Available Prompts Area (/) -->
+      <div class="p-4 border-b border-slate-100 flex-1 overflow-y-auto">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+            <span class="text-indigo-500 font-bold">/</span> Prompts
+          </h3>
+          <span class="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-md font-mono">MCP Schema</span>
+        </div>
+        <div class="space-y-2" id="sidebar-prompts-list">
+          <!-- Dynamic Prompts list -->
+        </div>
+      </div>
+
+      <!-- Available Resources Area (@) -->
+      <div class="p-4 flex-1 overflow-y-auto">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+            <span class="text-amber-500 font-bold">@</span> Resources
+          </h3>
+          <span class="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-md font-mono">Context URIs</span>
+        </div>
+        <div class="space-y-2" id="sidebar-resources-list">
+          <!-- Dynamic Resources list -->
+        </div>
+      </div>
+    </aside>
+
+    <!-- Center Section: Chat Workspace -->
+    <section class="flex-1 flex flex-col bg-slate-50/40 relative">
+      <!-- Session Bar -->
+      <div class="bg-white border-b border-slate-200/80 px-6 py-2.5 flex items-center justify-between text-xs text-slate-500">
+        <div class="flex items-center gap-4">
+          <span class="flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+            Host: <strong class="text-slate-700" id="host-name">agent-core-01</strong>
+          </span>
+          <span class="text-slate-300">|</span>
+          <span>Protocol State: <strong class="text-slate-700">Initialized</strong></span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded font-mono font-medium text-[10px]">MCP Connected</span>
+        </div>
+      </div>
+
+      <!-- Chat Output Stream -->
+      <div class="flex-1 overflow-y-auto p-6 space-y-6" id="chat-stream">
+        <!-- Welcoming Introduction Message -->
+        <div class="bg-gradient-to-br from-indigo-50/60 to-slate-50 border border-indigo-100/80 rounded-2xl p-6 max-w-3xl mx-auto space-y-4 shadow-sm">
+          <div class="flex items-start gap-4">
+            <div class="h-10 w-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shrink-0 shadow-md shadow-indigo-100">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5.5 h-5.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 002.25-2.25V6.75a2.25 2.25 0 00-2.25-2.25H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25z" />
+              </svg>
+            </div>
+            <div class="space-y-1.5 flex-1">
+              <h3 class="font-semibold text-slate-900 text-base">Model Context Protocol Live Workspace</h3>
+              <p class="text-sm text-slate-600 leading-relaxed">
+                Your actual MCP client is currently active. Type messages below or reference dynamically fetched prompts and resources:
+              </p>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                <div class="bg-white/80 p-3 rounded-lg border border-slate-200/80 flex gap-2">
+                  <div class="h-7 w-7 rounded bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-sm shrink-0">/</div>
+                  <div>
+                    <h4 class="text-xs font-semibold text-slate-900">Live Prompts</h4>
+                    <p class="text-[11px] text-slate-500">Faceted from the actual sub-server runtime schemas.</p>
+                  </div>
+                </div>
+                <div class="bg-white/80 p-3 rounded-lg border border-slate-200/80 flex gap-2">
+                  <div class="h-7 w-7 rounded bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-sm shrink-0">@</div>
+                  <div>
+                    <h4 class="text-xs font-semibold text-slate-900">Live Resources</h4>
+                    <p class="text-[11px] text-slate-500">Direct subprocess schema connections.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chat history items will dynamically go here -->
+      </div>
+
+      <!-- Input Trigger Panel & Autocomplete Box -->
+      <div class="p-6 bg-white border-t border-slate-200/80 relative">
+        <!-- Floating Autocomplete Suggestion Dropdown -->
+        <div id="autocomplete-panel" class="absolute left-6 right-6 bottom-[calc(100%+8px)] bg-white border border-slate-200/90 rounded-xl shadow-xl max-h-60 overflow-y-auto z-50 hidden transition-all">
+          <div class="bg-slate-50 px-4 py-2 border-b border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+            <span class="font-semibold" id="menu-type-indicator">SUGGESTIONS</span>
+            <span class="flex items-center gap-1.5">
+              <span class="bg-slate-200/80 px-1 rounded font-mono text-[10px]">↑↓</span> Move
+              <span class="bg-slate-200/80 px-1 rounded font-mono text-[10px]">Enter</span> Select
+              <span class="bg-slate-200/80 px-1 rounded font-mono text-[10px]">Esc</span> Close
+            </span>
+          </div>
+          <div class="divide-y divide-slate-100" id="suggestion-items">
+            <!-- Autocomplete entries are loaded here dynamic based on parser -->
+          </div>
+        </div>
+
+        <!-- The rich text input area -->
+        <div class="max-w-4xl mx-auto space-y-3">
+          <div class="relative bg-white border border-slate-200 rounded-xl focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all shadow-sm">
+            
+            <textarea id="agent-input-box" 
+                      rows="2" 
+                      placeholder="Ask the Agent, or type / to launch prompts and @ to inject resources..."
+                      class="w-full bg-transparent resize-none border-0 outline-none px-4 py-3.5 pr-20 text-slate-800 text-sm focus:ring-0 placeholder:text-slate-400"></textarea>
+
+            <!-- Send Action Button -->
+            <div class="absolute right-3 bottom-3 flex items-center gap-2">
+              <button onclick="submitAgentPrompt()" class="h-8 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs rounded-lg shadow-sm transition-colors flex items-center gap-1">
+                <span>Run Host</span>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Shortcuts & Tooltips -->
+          <div class="flex items-center justify-between text-xs text-slate-400 px-1">
+            <div class="flex items-center gap-4">
+              <span class="flex items-center gap-1">
+                <kbd class="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-[10px] font-mono">/</kbd> Prompts Menu
+              </span>
+              <span class="flex items-center gap-1">
+                <kbd class="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-[10px] font-mono">@</kbd> Resources Menu
+              </span>
+            </div>
+            <div class="flex items-center gap-1.5 text-slate-400">
+              <span class="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
+              <span>All Client Systems Operational</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Side Pane: MCP Live JSON Protocol Inspector -->
+    <aside class="w-96 border-l border-slate-200/80 bg-white flex flex-col hidden xl:flex">
+      <!-- Title Section -->
+      <div class="p-4 border-b border-slate-200/80 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="h-2 w-2 rounded-full bg-amber-500 animate-pulse"></div>
+          <h3 class="font-bold text-xs text-slate-700 uppercase tracking-wider">MCP Protocol Logs</h3>
+        </div>
+        <button onclick="clearProtocolLogs()" class="text-[11px] text-indigo-600 hover:underline">
+          Clear Logs
+        </button>
+      </div>
+
+      <!-- Active Logs Stream (JSON-RPC) -->
+      <div class="flex-1 overflow-y-auto bg-slate-900 text-slate-300 p-4 font-mono text-[11px] space-y-4" id="protocol-logs">
+        <div class="text-slate-500 italic text-center py-8" id="empty-logs-placeholder">
+          No JSON-RPC calls sent yet. Type / or @ and run a task to watch live Model Context Protocol exchanges.
+        </div>
+      </div>
+
+      <!-- Quick MCP Details Info Footer -->
+      <div class="p-4 bg-slate-50 border-t border-slate-200/80 text-[11px] text-slate-500 space-y-2">
+        <div class="flex justify-between">
+          <span>Active Client Protocol:</span>
+          <span class="font-mono text-slate-700">JSON-RPC 2.0</span>
+        </div>
+        <div class="flex justify-between">
+          <span>Active Transport Channel:</span>
+          <span class="font-mono text-slate-700">Stdio / SSE</span>
+        </div>
+        <p class="text-[10px] text-slate-400 mt-1 leading-relaxed">
+          MCP decouples model orchestrations from context acquisition, routing custom prompts & file-system schemas direct into the Host.
+        </p>
+      </div>
+    </aside>
+  </main>
+
+  <!-- Register Modal (Prompts/Resources configuration) -->
+  <div id="setup-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 hidden transition-opacity">
+    <div class="bg-white rounded-2xl w-full max-w-md p-6 border border-slate-200 shadow-2xl space-y-5 m-4">
+      <div class="flex items-center justify-between">
+        <h3 class="font-bold text-slate-900 text-lg">Register MCP Connector</h3>
+        <button onclick="toggleSetupModal(false)" class="text-slate-400 hover:text-slate-600 rounded-full p-1 hover:bg-slate-100">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="space-y-4">
+        <!-- MCP Select Type -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Connector Type</label>
+          <div class="grid grid-cols-2 gap-2">
+            <button id="btn-type-prompt" onclick="setModalFormType('prompt')" class="py-2 px-3 border border-indigo-200 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-medium text-center shadow-sm flex items-center justify-center gap-1.5 transition-all">
+              <span class="font-bold text-sm">/</span> Prompt Template
+            </button>
+            <button id="btn-type-resource" onclick="setModalFormType('resource')" class="py-2 px-3 border border-slate-200 text-slate-600 rounded-lg text-xs font-medium text-center hover:bg-slate-50 flex items-center justify-center gap-1.5 transition-all">
+              <span class="font-bold text-sm">@</span> Data Resource
+            </button>
+          </div>
+        </div>
+
+        <!-- Name Input -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 uppercase mb-1.5" id="lbl-connector-name">Prompt Label</label>
+          <div class="relative">
+            <span class="absolute left-3 top-2 text-slate-400 font-mono text-sm" id="modal-prefix-symbol">/</span>
+            <input type="text" id="modal-item-name" placeholder="e.g. explain-query" class="w-full border border-slate-200 focus:ring-1 focus:ring-indigo-500/20 focus:border-indigo-500 rounded-lg py-1.5 pl-7 pr-3 text-sm text-slate-800 outline-none">
+          </div>
+        </div>
+
+        <!-- Description Input -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Short Context Description</label>
+          <input type="text" id="modal-item-desc" placeholder="e.g. Explains structure of target table queries" class="w-full border border-slate-200 focus:ring-1 focus:ring-indigo-500/20 focus:border-indigo-500 rounded-lg py-1.5 px-3 text-sm text-slate-800 outline-none">
+        </div>
+
+        <!-- Simulated Context Payload (For testing responses) -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Context Output Value (JSON / Markdown / SQL)</label>
+          <textarea id="modal-item-content" rows="3" placeholder="This response text will inject dynamically into the model whenever this element is used..." class="w-full border border-slate-200 focus:ring-1 focus:ring-indigo-500/20 focus:border-indigo-500 rounded-lg py-1.5 px-3 text-xs text-slate-800 outline-none font-mono"></textarea>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+        <button onclick="toggleSetupModal(false)" class="px-4 py-2 text-slate-500 hover:bg-slate-100 font-medium text-xs rounded-lg transition-all">
+          Cancel
+        </button>
+        <button onclick="saveCustomMcpElement()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-lg shadow-sm transition-all">
+          Verify & Save
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom Alert System -->
+  <div id="toast-container" class="fixed top-5 right-5 space-y-2 z-50 pointer-events-none"></div>
+
+  <script>
+    // ----------------------------------------------------
+    // API CONFIGURATION: PUT YOUR SERVER ENDPOINT URI HERE
+    // ----------------------------------------------------
+    const API_BASE_URL = "http://127.0.0.1:8000";
+
+    // Dynamic Lists (Populated via FastAPI responses)
+    let mcpServers = [];
+    let mcpPrompts = [];
+    let mcpResources = [];
+
+    // Current Thread State to preserve memory checkpointers
+    let currentThreadId = null;
+
+    // Autocomplete Navigation States
+    let modalFormType = 'prompt'; 
+    let cursorIndex = 0;
+    let autocompleteActive = false;
+    let menuType = ''; 
+    let selectedMenuItemIndex = 0;
+    let currentMatchQuery = '';
+
+    // Element references
+    const chatStream = document.getElementById('chat-stream');
+    const inputArea = document.getElementById('agent-input-box');
+    const autocompletePanel = document.getElementById('autocomplete-panel');
+    const menuTypeIndicator = document.getElementById('menu-type-indicator');
+    const suggestionContainer = document.getElementById('suggestion-items');
+    const logsContainer = document.getElementById('protocol-logs');
+    const emptyLogsPlaceholder = document.getElementById('empty-logs-placeholder');
+
+    // ----------------------------------------------------
+    // DYNAMIC BACKEND SYNCHRONIZATION
+    // ----------------------------------------------------
+    window.onload = async function() {
+      // Log client handshaking sequence
+      logProtocolAction('HostConnection', { url: API_BASE_URL, transport: "http/json" }, "OUTBOUND_REQUEST");
+      
+      await loadBackendResources();
+    };
+
+    async function loadBackendResources() {
+      try {
+        // Fetch active servers from FastAPI
+        const serversRes = await fetch(`${API_BASE_URL}/api/servers`);
+        mcpServers = await serversRes.json();
+        logProtocolAction('servers/list', mcpServers, "INBOUND_RESPONSE");
+
+        // Fetch registered Prompt schemas from FastAPI
+        const promptsRes = await fetch(`${API_BASE_URL}/api/prompts`);
+        mcpPrompts = await promptsRes.json();
+        logProtocolAction('prompts/list', mcpPrompts, "INBOUND_RESPONSE");
+
+        // Fetch dynamic resource routes from FastAPI
+        const resourcesRes = await fetch(`${API_BASE_URL}/api/resources`);
+        mcpResources = await resourcesRes.json();
+        logProtocolAction('resources/list', mcpResources, "INBOUND_RESPONSE");
+
+        renderWorkspaceItems();
+        
+        if (mcpServers.length > 0) {
+          document.getElementById('host-name').textContent = mcpServers[0].name;
+        }
+
+        triggerToast('Connected directly to FastAPI MCP Workspace.', 'success');
+      } catch (err) {
+        console.error("Backend offline. Loading mock templates fallback...", err);
+        triggerToast('FastAPI Connection failed. Using mock sandbox fallback context.', 'error');
+        
+        // Dynamic mock context parameters if offline
+        mcpServers = [
+          { id: "fallback-sub", name: "Mock Subprocess Connection", active: false, uri: "stdio://offline", latency: "N/A" }
+        ];
+        mcpPrompts = [
+          { name: "explain-query", desc: "Mock optimization outline", content: "Optimize SQL parameters" }
+        ];
+        mcpResources = [
+          { name: "project_details.json", desc: "Mock directory pointer details", content: "{}" }
+        ];
+        
+        renderWorkspaceItems();
+      }
+    }
+
+    function renderWorkspaceItems() {
+      // 1. Render Servers Panel
+      const serverContainer = document.getElementById('server-list');
+      serverContainer.innerHTML = '';
+      mcpServers.forEach(server => {
+        serverContainer.innerHTML += `
+          <div class="p-2.5 rounded-lg border border-slate-100 bg-slate-50/60 hover:bg-slate-50 flex items-center justify-between transition-colors">
+            <div class="flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full ${server.active ? 'bg-emerald-500' : 'bg-rose-500 animate-pulse'}"></span>
+              <div>
+                <p class="text-[11px] font-bold text-slate-800 leading-tight">${server.name}</p>
+                <p class="text-[9px] font-mono text-slate-400">${server.uri}</p>
+              </div>
+            </div>
+            <span class="text-[9px] font-mono text-slate-500 bg-white border border-slate-150 px-1 rounded">${server.latency || 'connected'}</span>
+          </div>
+        `;
+      });
+
+      // 2. Render Prompts Sidebar Area
+      const promptsContainer = document.getElementById('sidebar-prompts-list');
+      promptsContainer.innerHTML = '';
+      mcpPrompts.forEach(p => {
+        promptsContainer.innerHTML += `
+          <div class="p-2 rounded-lg border border-slate-100 bg-slate-50/40 hover:border-slate-200 hover:bg-slate-50 transition-all cursor-pointer group" onclick="insertTriggerText('/${p.name}')">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono font-bold text-indigo-600">/${p.name}</span>
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+            </div>
+            <p class="text-[10px] text-slate-400 line-clamp-1 mt-0.5">${p.desc}</p>
+          </div>
+        `;
+      });
+
+      // 3. Render Resources Sidebar Area
+      const resourcesContainer = document.getElementById('sidebar-resources-list');
+      resourcesContainer.innerHTML = '';
+      mcpResources.forEach(r => {
+        const cleanedName = r.name.replace("file:///outputs/", "");
+        resourcesContainer.innerHTML += `
+          <div class="p-2 rounded-lg border border-slate-100 bg-slate-50/40 hover:border-slate-200 hover:bg-slate-50 transition-all cursor-pointer group" onclick="insertTriggerText('@${cleanedName}')">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono font-bold text-amber-600">@${cleanedName}</span>
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+            </div>
+            <p class="text-[10px] text-slate-400 line-clamp-1 mt-0.5">${r.desc}</p>
+          </div>
+        `;
+      });
+    }
+
+    // Helper Text Injection Trigger
+    function insertTriggerText(val) {
+      const pos = inputArea.selectionStart;
+      const originalText = inputArea.value;
+      inputArea.value = originalText.substring(0, pos) + val + " " + originalText.substring(pos);
+      inputArea.focus();
+      triggerToast(`Inserted ${val} workspace reference`, 'info');
+      parseAutocompleteState();
+    }
+
+    // ----------------------------------------------------
+    // TRIGGER INTERPRETER & SUGGESTIONS MENU
+    // ----------------------------------------------------
+    inputArea.addEventListener('input', () => {
+      parseAutocompleteState();
+    });
+
+    inputArea.addEventListener('keyup', (e) => {
+      if (e.key === 'Escape') {
+        hideAutocomplete();
+      }
+    });
+
+    function parseAutocompleteState() {
+      const text = inputArea.value;
+      const selEnd = inputArea.selectionStart;
+      
+      const leftSlice = text.substring(0, selEnd);
+      const words = leftSlice.split(/\s+/);
+      const currentWord = words[words.length - 1] || '';
+
+      if (currentWord.startsWith('/')) {
+        menuType = 'prompt';
+        currentMatchQuery = currentWord.substring(1).toLowerCase();
+        showAutocomplete();
+      } else if (currentWord.startsWith('@')) {
+        menuType = 'resource';
+        currentMatchQuery = currentWord.substring(1).toLowerCase();
+        showAutocomplete();
+      } else {
+        hideAutocomplete();
+      }
+    }
+
+    function showAutocomplete() {
+      const dataSet = menuType === 'prompt' ? mcpPrompts : mcpResources;
+      const matched = dataSet.filter(item => item.name.toLowerCase().includes(currentMatchQuery));
+
+      if (matched.length === 0) {
+        hideAutocomplete();
+        return;
+      }
+
+      autocompleteActive = true;
+      autocompletePanel.classList.remove('hidden');
+      menuTypeIndicator.textContent = menuType === 'prompt' ? "MCP PROMPTS AVAILABLE (/)" : "MCP RESOURCES (@)";
+      
+      if (selectedMenuItemIndex >= matched.length) {
+        selectedMenuItemIndex = 0;
+      }
+
+      renderSuggestionList(matched);
+    }
+
+    function hideAutocomplete() {
+      autocompleteActive = false;
+      autocompletePanel.classList.add('hidden');
+      selectedMenuItemIndex = 0;
+    }
+
+    function renderSuggestionList(items) {
+      suggestionContainer.innerHTML = '';
+      items.forEach((item, index) => {
+        const isSelected = index === selectedMenuItemIndex;
+        const selectClasses = isSelected ? 'bg-indigo-50/70 border-l-4 border-indigo-600 pl-3' : 'hover:bg-slate-50/80 border-l-4 border-transparent pl-4';
+        const triggerChar = menuType === 'prompt' ? '/' : '@';
+        const pillColor = menuType === 'prompt' ? 'bg-indigo-50 border-indigo-100 text-indigo-700' : 'bg-amber-50 border-amber-100 text-amber-700';
+
+        const displayName = item.name.replace("file:///outputs/", "");
+
+        suggestionContainer.innerHTML += `
+          <div class="p-3 pr-4 flex items-center justify-between cursor-pointer transition-all ${selectClasses}" onclick="applySuggestion('${displayName}')">
+            <div>
+              <div class="flex items-center gap-1.5">
+                <span class="text-sm font-mono font-bold text-slate-800">${triggerChar}${displayName}</span>
+                <span class="text-[9px] px-1.5 py-0.5 border rounded-full font-medium ${pillColor}">${menuType}</span>
+              </div>
+              <p class="text-xs text-slate-500 mt-0.5">${item.desc}</p>
+            </div>
+            <span class="text-[10px] text-slate-400 font-mono italic">Enter to select</span>
+          </div>
+        `;
+      });
+    }
+
+    function applySuggestion(name) {
+      const text = inputArea.value;
+      const selEnd = inputArea.selectionStart;
+      
+      const leftSlice = text.substring(0, selEnd);
+      const rightSlice = text.substring(selEnd);
+      
+      const lastTriggerIndex = Math.max(leftSlice.lastIndexOf('/'), leftSlice.lastIndexOf('@'));
+      
+      if (lastTriggerIndex !== -1) {
+        const triggerChar = text[lastTriggerIndex];
+        const newText = text.substring(0, lastTriggerIndex) + triggerChar + name + " " + rightSlice;
+        inputArea.value = newText;
+        
+        const newCursorPos = lastTriggerIndex + name.length + 2; 
+        inputArea.setSelectionRange(newCursorPos, newCursorPos);
+      }
+      
+      hideAutocomplete();
+      inputArea.focus();
+
+      if (menuType === 'prompt') {
+        logProtocolAction('prompts/get', { name: name }, "OUTBOUND_REQUEST");
+      } else {
+        logProtocolAction('resources/read', { uri: `file:///outputs/${name}` }, "OUTBOUND_REQUEST");
+      }
+    }
+
+    // ----------------------------------------------------
+    // AUTOCOMPLETE EVENT LISTENER
+    // ----------------------------------------------------
+    inputArea.addEventListener('keydown', (e) => {
+      if (!autocompleteActive) return;
+
+      const dataSet = menuType === 'prompt' ? mcpPrompts : mcpResources;
+      const matched = dataSet.filter(item => item.name.toLowerCase().includes(currentMatchQuery));
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        selectedMenuItemIndex = (selectedMenuItemIndex + 1) % matched.length;
+        renderSuggestionList(matched);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        selectedMenuItemIndex = (selectedMenuItemIndex - 1 + matched.length) % matched.length;
+        renderSuggestionList(matched);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (matched[selectedMenuItemIndex]) {
+          const nameToApply = matched[selectedMenuItemIndex].name.replace("file:///outputs/", "");
+          applySuggestion(nameToApply);
+        }
+      } else if (e.key === 'Tab') {
+        e.preventDefault();
+        if (matched[selectedMenuItemIndex]) {
+          const nameToApply = matched[selectedMenuItemIndex].name.replace("file:///outputs/", "");
+          applySuggestion(nameToApply);
+        }
+      }
+    });
+
+    // ----------------------------------------------------
+    // JSON-RPC PROTOCOL LOG STREAMER
+    // ----------------------------------------------------
+    function logProtocolAction(method, params, direction = "OUTBOUND_REQUEST") {
+      emptyLogsPlaceholder.classList.add('hidden');
+      const timeStr = new Date().toLocaleTimeString();
+      const requestId = Math.floor(Math.random() * 100000);
+
+      let logBlock = '';
+      if (direction === "OUTBOUND_REQUEST") {
+        logBlock = {
+          jsonrpc: "2.0",
+          id: requestId,
+          method: method.includes("://") ? method : `mcp://${method}`,
+          params: params
+        };
+      } else {
+        logBlock = {
+          jsonrpc: "2.0",
+          id: requestId,
+          result: params
+        };
+      }
+
+      const isOutbound = direction === "OUTBOUND_REQUEST";
+      const colorTag = isOutbound ? 'text-indigo-400' : 'text-emerald-400';
+      const borderTheme = isOutbound ? 'border-indigo-950 bg-indigo-950/20' : 'border-emerald-950 bg-emerald-950/20';
+      const arrowSymbol = isOutbound ? '→ CLIENT TO HOST' : '← HOST TO CLIENT';
+
+      const entry = document.createElement('div');
+      entry.className = `p-3 rounded-lg border ${borderTheme} space-y-1.5 transition-all animate-fade-in`;
+      entry.innerHTML = `
+        <div class="flex items-center justify-between text-[10px]">
+          <span class="font-bold ${colorTag}">${arrowSymbol}</span>
+          <span class="text-slate-500 font-sans">${timeStr}</span>
+        </div>
+        <pre class="overflow-x-auto select-all text-slate-300 font-mono p-1 leading-normal text-[10px]">${JSON.stringify(logBlock, null, 2)}</pre>
+      `;
+
+      logsContainer.insertBefore(entry, logsContainer.firstChild);
+    }
+
+    function clearProtocolLogs() {
+      logsContainer.innerHTML = '';
+      emptyLogsPlaceholder.classList.remove('hidden');
+      triggerToast('Inspector protocol console cleared.', 'info');
+    }
+
+    // ----------------------------------------------------
+    // CHAT EXECUTION: DISPATCH TO REAl FASTAPI WORKFLOW
+    // ----------------------------------------------------
+    async function submitAgentPrompt() {
+      const originalText = inputArea.value.trim();
+      if (!originalText) return;
+
+      inputArea.value = '';
+      hideAutocomplete();
+
+      // Show user's prompt immediately in message container
+      appendMessage('user', originalText);
+
+      // Track resource or prompt injections parsed locally to match backend output logs
+      const promptMatches = mcpPrompts.filter(p => originalText.includes(`/${p.name}`));
+      const resourceMatches = mcpResources.filter(r => {
+        const cleaned = r.name.replace("file:///outputs/", "");
+        return originalText.includes(`@${cleaned}`);
+      });
+
+      // Show processing state indicator bubble
+      const typingIndicator = appendTypingIndicator();
+
+      // Log outbound JSON RPC parameters matching FastAPI backend pipelines
+      logProtocolAction('agent/chat', { 
+        message: originalText, 
+        thread_id: currentThreadId, 
+        meta: { promptMatches, resourceMatches } 
+      }, 'OUTBOUND_REQUEST');
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/chat`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            message: originalText,
+            thread_id: currentThreadId
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP Error Status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        // Remove processing loader
+        typingIndicator.remove();
+
+        // Capture dynamic session thread ID for continued checkpointers
+        if (data.meta && data.meta.thread_id) {
+          currentThreadId = data.meta.thread_id;
+        }
+
+        // Log inbound compliance logs
+        logProtocolAction('agent/chat/response', data, 'INBOUND_RESPONSE');
+
+        // Append final completion
+        const resolvedPrompts = data.meta?.prompts_called ? mcpPrompts.filter(p => data.meta.prompts_called.includes(p.name)) : [];
+        const resolvedResources = data.meta?.resources_mounted ? mcpResources.filter(r => data.meta.resources_mounted.includes(r.name)) : [];
+
+        appendMessage('agent', data.message, resolvedPrompts, resolvedResources);
+
+      } catch (err) {
+        typingIndicator.remove();
+        console.error("FastAPI Chat invocation failed:", err);
+        triggerToast("Failed to reach real backend. Check console logs.", "error");
+        
+        appendMessage('agent', "⚠️ **System Subprocess Connection Failed:** Unable to connect to backend agent at `http://127.0.0.1:8000/api/chat`. Please verify that `uvicorn` is actively running.");
+      }
+    }
+
+    function appendMessage(sender, text, prompts = [], resources = []) {
+      const outerDiv = document.createElement('div');
+      outerDiv.className = `flex gap-4 p-5 rounded-2xl max-w-4xl mx-auto border transition-all animate-fade-in ${
+        sender === 'user' 
+          ? 'bg-white border-slate-200 shadow-sm' 
+          : 'bg-indigo-50/20 border-indigo-100/50'
+      }`;
+
+      let iconMarkup = sender === 'user' 
+        ? `<div class="h-9 w-9 bg-slate-100 border border-slate-200 text-slate-700 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">US</div>`
+        : `<div class="h-9 w-9 bg-indigo-600 text-white rounded-lg flex items-center justify-center font-semibold text-sm shrink-0 shadow-md">AI</div>`;
+
+      // Render References Tags if active
+      let referencesPanel = '';
+      if (prompts.length > 0 || resources.length > 0) {
+        referencesPanel = `<div class="flex flex-wrap gap-1.5 pt-3 border-t border-slate-100/60 mt-3 text-[10px]">`;
+        prompts.forEach(p => {
+          referencesPanel += `<span class="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 border border-indigo-100 px-2 py-0.5 rounded-full font-mono">/${p.name}</span>`;
+        });
+        resources.forEach(r => {
+          const cleaned = r.name.replace("file:///outputs/", "");
+          referencesPanel += `<span class="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-100 px-2 py-0.5 rounded-full font-mono">@${cleaned}</span>`;
+        });
+        referencesPanel += `</div>`;
+      }
+
+      // Format markdown elements safely for presentations
+      let formattedText = text
+        .replace(/\n/g, '<br>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/`(.*?)`/g, '<code class="bg-slate-100 px-1.5 py-0.5 rounded text-indigo-600 font-mono text-xs">$1</code>');
+
+      outerDiv.innerHTML = `
+        ${iconMarkup}
+        <div class="space-y-1.5 flex-1 overflow-x-auto">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-slate-900">${sender === 'user' ? 'Client Request' : 'MCP Agent Host'}</span>
+            <span class="text-[10px] text-slate-400 font-mono">${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+          </div>
+          <p class="text-slate-700 text-sm leading-relaxed">${formattedText}</p>
+          ${referencesPanel}
+        </div>
+      `;
+
+      chatStream.appendChild(outerDiv);
+      chatStream.scrollTop = chatStream.scrollHeight;
+    }
+
+    function appendTypingIndicator() {
+      const outerDiv = document.createElement('div');
+      outerDiv.className = 'flex gap-4 p-5 rounded-2xl max-w-4xl mx-auto border border-indigo-50 bg-indigo-50/10 animate-pulse';
+      outerDiv.innerHTML = `
+        <div class="h-9 w-9 bg-slate-200 rounded-lg flex items-center justify-center shrink-0">
+          <div class="dot-flashing"></div>
+        </div>
+        <div class="space-y-2 flex-1 py-1">
+          <div class="h-2 bg-slate-200 rounded w-1/4"></div>
+          <div class="h-2 bg-slate-200 rounded w-1/2"></div>
+        </div>
+      `;
+      chatStream.appendChild(outerDiv);
+      chatStream.scrollTop = chatStream.scrollHeight;
+      return outerDiv;
+    }
+
+    function clearWorkspace() {
+      currentThreadId = null;
+      chatStream.innerHTML = `
+        <div class="bg-gradient-to-br from-indigo-50/60 to-slate-50 border border-indigo-100/80 rounded-2xl p-6 max-w-3xl mx-auto space-y-4 shadow-sm">
+          <div class="flex items-start gap-4">
+            <div class="h-10 w-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shrink-0 shadow-md shadow-indigo-100">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5.5 h-5.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 002.25-2.25V6.75a2.25 2.25 0 00-2.25-2.25H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25z" />
+              </svg>
+            </div>
+            <div class="space-y-1.5 flex-1">
+              <h3 class="font-semibold text-slate-900 text-base">Model Context Protocol Live Workspace</h3>
+              <p class="text-sm text-slate-600 leading-relaxed">
+                Your actual MCP client is currently active. Type messages below or reference dynamically fetched prompts and resources:
+              </p>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                <div class="bg-white/80 p-3 rounded-lg border border-slate-200/80 flex gap-2">
+                  <div class="h-7 w-7 rounded bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-sm shrink-0">/</div>
+                  <div>
+                    <h4 class="text-xs font-semibold text-slate-900">Live Prompts</h4>
+                    <p class="text-[11px] text-slate-500">Faceted from the actual sub-server runtime schemas.</p>
+                  </div>
+                </div>
+                <div class="bg-white/80 p-3 rounded-lg border border-slate-200/80 flex gap-2">
+                  <div class="h-7 w-7 rounded bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-sm shrink-0">@</div>
+                  <div>
+                    <h4 class="text-xs font-semibold text-slate-900">Live Resources</h4>
+                    <p class="text-[11px] text-slate-500">Direct subprocess schema connections.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      clearProtocolLogs();
+      triggerToast('Workspace simulator and session thread ID cleared.', 'success');
+    }
+
+    // ----------------------------------------------------
+    // SETUP REGISTER FORM
+    // ----------------------------------------------------
+    function toggleSetupModal(open) {
+      const modal = document.getElementById('setup-modal');
+      if (open) {
+        modal.classList.remove('hidden');
+        setModalFormType('prompt');
+      } else {
+        modal.classList.add('hidden');
+        clearModalInputs();
+      }
+    }
+
+    function setModalFormType(type) {
+      modalFormType = type;
+      const btnPrompt = document.getElementById('btn-type-prompt');
+      const btnResource = document.getElementById('btn-type-resource');
+      const prefixSym = document.getElementById('modal-prefix-symbol');
+      const nameLbl = document.getElementById('lbl-connector-name');
+      const nameInput = document.getElementById('modal-item-name');
+
+      if (type === 'prompt') {
+        btnPrompt.className = "py-2 px-3 border border-indigo-200 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-medium text-center shadow-sm flex items-center justify-center gap-1.5 transition-all";
+        btnResource.className = "py-2 px-3 border border-slate-200 text-slate-600 rounded-lg text-xs font-medium text-center hover:bg-slate-50 flex items-center justify-center gap-1.5 transition-all";
+        prefixSym.innerText = "/";
+        nameLbl.innerText = "Prompt Label";
+        nameInput.placeholder = "e.g. build-test-suite";
+      } else {
+        btnPrompt.className = "py-2 px-3 border border-slate-200 text-slate-600 rounded-lg text-xs font-medium text-center hover:bg-slate-50 flex items-center justify-center gap-1.5 transition-all";
+        btnResource.className = "py-2 px-3 border border-amber-200 bg-amber-50 text-amber-700 rounded-lg text-xs font-medium text-center shadow-sm flex items-center justify-center gap-1.5 transition-all";
+        prefixSym.innerText = "@";
+        nameLbl.innerText = "Resource URI Target";
+        nameInput.placeholder = "e.g. server-error-logs";
+      }
+    }
+
+    function clearModalInputs() {
+      document.getElementById('modal-item-name').value = '';
+      document.getElementById('modal-item-desc').value = '';
+      document.getElementById('modal-item-content').value = '';
+    }
+
+    function saveCustomMcpElement() {
+      const name = document.getElementById('modal-item-name').value.trim().toLowerCase().replace(/\s+/g, '-');
+      const desc = document.getElementById('modal-item-desc').value.trim();
+      const content = document.getElementById('modal-item-content').value.trim();
+
+      if (!name || !desc || !content) {
+        triggerToast("Complete all parameters to save custom configuration.", "error");
+        return;
+      }
+
+      if (modalFormType === 'prompt') {
+        if (mcpPrompts.some(p => p.name === name)) {
+          triggerToast(`A prompt already matches /${name}`, 'error');
+          return;
+        }
+        mcpPrompts.push({ name, desc, content });
+      } else {
+        if (mcpResources.some(r => r.name === name)) {
+          triggerToast(`A resource already matches @${name}`, 'error');
+          return;
+        }
+        mcpResources.push({ name: `file:///outputs/${name}`, desc, content });
+      }
+
+      renderWorkspaceItems();
+      toggleSetupModal(false);
+      triggerToast(`Saved ${modalFormType === 'prompt' ? '/' : '@'}${name} locally.`, 'success');
+    }
+
+    // ----------------------------------------------------
+    // TOAST HELPER
+    // ----------------------------------------------------
+    function triggerToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      
+      let themeClasses = 'bg-indigo-50 text-indigo-800 border-indigo-200';
+      if (type === 'success') themeClasses = 'bg-emerald-50 text-emerald-800 border-emerald-200';
+      if (type === 'error') themeClasses = 'bg-rose-50 text-rose-800 border-rose-200';
+
+      toast.className = `p-3.5 rounded-xl border shadow-lg max-w-sm pointer-events-auto transition-all transform duration-300 translate-y-2 opacity-0 text-xs font-semibold flex items-center gap-2 ${themeClasses}`;
+      toast.innerHTML = `<span>${type === 'success' ? '✓' : type === 'error' ? '✕' : 'i'}</span> <span>${message}</span>`;
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.classList.remove('translate-y-2', 'opacity-0');
+      }, 10);
+
+      setTimeout(() => {
+        toast.classList.add('translate-y-2', 'opacity-0');
+        setTimeout(() => toast.remove(), 300);
+      }, 3500);
+    }
+  </script>
+</body>
+</html>
