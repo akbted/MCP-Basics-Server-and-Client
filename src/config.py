@@ -1,6 +1,10 @@
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+from langchain_openrouter import ChatOpenRouter
+from langchain_ollama import ChatOllama
+
+
 
 load_dotenv()
 
@@ -14,4 +18,21 @@ class Settings:
     OUTPUT_DIR = ROOT / "outputs" 
     OUTPUT_FILE = ROOT / "outputs" / "project_details.json"
 
+    MODEL_NAME = os.getenv("MODEL_NAME")
+    OLLAMA_MODEL_NAME = os.getenv("OLLAMA_MODEL")
+
+
+
+
 settings = Settings()
+
+def get_llmclient():
+    return ChatOpenRouter(
+        model=settings.MODEL_NAME,
+        api_key=settings.OPENROUTER)
+
+def get_ollamaclient():
+    return ChatOllama(
+        model=settings.OLLAMA_MODEL_NAME,
+        temperature=0.1
+    ) 

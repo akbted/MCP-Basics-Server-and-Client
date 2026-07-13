@@ -45,7 +45,21 @@ class MCPClient:
 
     async def get_resources(self,  uris: str | list[str] | None = None):
         return await self.session().get_resources(self._server_name, uris=uris)
+    
+    async def list_prompts(self):
+        async with self.session().session(self._server_name) as raw_session:
+            result = await raw_session.list_prompts()
+            return result.prompts
 
+    async def list_resources(self):
+        async with self.session().session(self._server_name) as raw_session:
+            result = await raw_session.list_resources()
+            return result.resources
+    
+    async def list_resource_templates(self):
+        async with self.session().session(self._server_name) as raw_session:
+            result = await raw_session.list_resource_templates()
+            return result.resourceTemplates
 
 
 
@@ -56,14 +70,19 @@ async def main_run():
     print(tools)
 
     prompt_messages = await mcp.get_prompt(
-        "Get Updates",
+        "GetUpdates",
         arguments={"project_details": "{}"}
     )
+    print("Prompt Messages output:")
     print(prompt_messages)
 
-    resources = await mcp.get_resources(uris="file:///outputs")
+    print("\n" + "="*40 + "\n")
+
+    resources = await mcp.get_resources(uris="openproject://outputs/project-details")
     for blob in resources:
-        print(blob.as_string())
+        # Check if helper method or text attribute exists on returned Blob
+        content = blob.as_string() if hasattr(blob, "as_string") else str(blob)
+        print("Resource Content:\n", content)
 
 
 

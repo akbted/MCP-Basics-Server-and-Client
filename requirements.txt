@@ -7,3 +7,4 @@ langchain-openrouter
 langchain
 langchain-mcp-adapters
 fastapi
+langchain-ollama
