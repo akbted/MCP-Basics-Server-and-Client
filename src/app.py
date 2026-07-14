@@ -14,8 +14,8 @@ from typing import Optional, Any, Dict
 import json
 
 
-# llm = get_llmclient()
-llm = get_ollamaclient()
+llm = get_llmclient()
+# llm = get_ollamaclient()
 mcp_client: Optional[MCPClient] = None
 agent_instance: Optional[Any] = None
 

@@ -70,9 +70,28 @@ async def list_project() -> List[Dict]:
 )
 async def list_project_workpackages(project_id: int) -> List[Dict]:
     http = op_client.get_client()
-    response = await http.get(f"/api/v3/projects/{project_id}/work_packages")
+    response = await http.get(f"/api/v3/projects/{project_id}/work_packages", params=
+                              {"pageSize": 1000, "offset": 1})
+    
     response.raise_for_status()
     data = response.json()
+
+    total = data.get("total", 0)
+    elements = data["_embedded"]["elements"]
+    
+    all_elements = elements
+    page_size = 1000
+    offset = 2
+    while len(all_elements) < total:
+        resp = await http.get(
+            f"/api/v3/projects/{project_id}/work_packages",
+            params={"pageSize": page_size, "offset": offset}
+        )
+        resp.raise_for_status()
+        page_data = resp.json()
+        all_elements.extend(page_data["_embedded"]["elements"])
+        offset += 1
+
     result = []
     for item in data["_embedded"]["elements"]:
         work_package = {}
@@ -84,11 +103,14 @@ async def list_project_workpackages(project_id: int) -> List[Dict]:
         work_package["percentageDone"] = item.get("percentageDone", "")
         work_package["createdAt"] = item.get("createdAt", "")
         work_package["updatedAt"] = item.get("updatedAt", "")
-        work_package["author"] = item.get("_links", "").get("author", "")
-        work_package["assignee"] = item.get("_links", "").get("assignee", "")
-        work_package["status"] = item.get("_links", "").get("status", "")
+        work_package["author"] = item.get("_links", {}).get("author", {}).get("title", {})
+        work_package["assignee"] = item.get("_links", {}).get("assignee", {}).get("title", {})
+        work_package["status"] = item.get("_links", {}).get("status", {}).get("title", {})
 
         result.append(work_package)
+    
+    result.sort(key=lambda wp: wp.get("createdAt") or "", reverse=True)
+
     
     return result
 
@@ -162,43 +184,75 @@ async def get_work_package_hierarchy(work_package_id: int) -> Dict:
 
 @mcp.tool(
     name="get_project_summary",
-    description="Get an executive summary of a project including work package status counts and upcoming deadlines."
+    description="Get an executive summary of a project including work package status counts, in-progress items, and upcoming deadlines."
 )
 async def get_project_summary(project_id: int) -> Dict:
-    """Aggregates active work packages into status counts and key details."""
     http = op_client.get_client()
-    response = await http.get(f"/api/v3/projects/{project_id}/work_packages")
+
+    page_size = 1000
+    offset = 1
+
+    response = await http.get(
+        f"/api/v3/projects/{project_id}/work_packages",
+        params={"pageSize": page_size, "offset": offset}
+    )
     response.raise_for_status()
     data = response.json()
 
+    total = data.get("total", 0)
     elements = data.get("_embedded", {}).get("elements", [])
-    
+    all_elements = list(elements)
+
+    offset = 2
+    while len(all_elements) < total:
+        response = await http.get(
+            f"/api/v3/projects/{project_id}/work_packages",
+            params={"pageSize": page_size, "offset": offset}
+        )
+        response.raise_for_status()
+        page_data = response.json()
+        all_elements.extend(page_data.get("_embedded", {}).get("elements", []))
+        offset += 1
+
     status_counts = {}
     upcoming_deadlines = []
+    in_progress_items = []
 
-    for item in elements:
-        # Tally statuses
-        status_name = item.get("_links", {}).get("status", {}).get("title", "Unknown")
+    for item in all_elements:
+        links = item.get("_links") or {}
+        status_name = links.get("status", {}).get("title", "Unknown")
+        assignee_name = links.get("assignee", {}).get("title", "Unassigned")
+        author = links.get("author", {}).get("title", "Unassigned")
+
         status_counts[status_name] = status_counts.get(status_name, 0) + 1
-        
-        # Track due dates
+
+        if status_name == "In progress":
+            in_progress_items.append({
+                "id": item.get("id", ""),
+                "subject": item.get("subject", ""),
+                "author_created": author,
+                "assignee": assignee_name,
+                "createdAt": item.get("createdAt", "")
+            })
+
         due_date = item.get("dueDate") or item.get("derivedDueDate")
         if due_date:
             upcoming_deadlines.append({
-                "id": item.get("id"),
-                "subject": item.get("subject"),
+                "id": item.get("id", ""),
+                "subject": item.get("subject", ""),
                 "dueDate": due_date,
                 "status": status_name,
-                "assignee": item.get("_links", {}).get("assignee", {}).get("title", "Unassigned")
+                "assignee": assignee_name
             })
 
-    # Sort deadlines ascending
     upcoming_deadlines.sort(key=lambda x: x["dueDate"])
+    in_progress_items.sort(key=lambda x: x["createdAt"] or "", reverse=True)
 
     return {
         "projectId": project_id,
-        "totalWorkPackages": data.get("total", len(elements)),
+        "totalWorkPackages": total or len(all_elements),
         "statusBreakdown": status_counts,
+        "inProgressItems": in_progress_items,
         "upcomingDeadlines": upcoming_deadlines[:10]
     }
 
@@ -325,42 +379,92 @@ async def get_project_summary(project_id: int) -> Dict:
 #     return entries
 
 
+project_details = {
+    "DailyUpdates": {
+        "id": 17,
+        "identifier": "daily-updates",
+        "name": "Daily_updates",
+        "active": True,
+        "public": False,
+        "created_at": "2026-06-25T04:40:27.069Z"
+    },
+    "DPSInternship": {
+        "id": 14,
+        "identifier": "dps-internship",
+        "name": "DPS_INTERNSHIP",
+        "active": True,
+        "public": False,
+        "created_at": "2026-04-01T11:40:05.651Z"
+    },
+    "UTI": {
+        "id": 12,
+        "identifier": "uti",
+        "name": "UTI",
+        "active": True,
+        "public": False,
+        "created_at": "2026-03-13T10:15:26.371Z"
+    },
+    "MBPDDashboard": {
+        "id": 11,
+        "identifier": "mbdp-dashboard",
+        "name": "BI-Dashboard MBPD Process",
+        "active": True,
+        "public": True,
+        "created_at": "2026-02-23T09:48:58.473Z"
+    },
+    "ArcaQuest": {
+        "id": 7,
+        "identifier": "arca-quest",
+        "name": "Arca Quest",
+        "active": True,
+        "public": False,
+        "created_at": "2025-12-01T09:55:38.822Z"
+    },
+    "ArcaEMRLite": {
+        "id": 6,
+        "identifier": "arca-emr-lite",
+        "name": "Arca EMR lite",
+        "active": True,
+        "public": False,
+        "created_at": "2025-12-01T09:55:00.666Z"
+    },
+    "Stenovault": {
+        "id": 5,
+        "identifier": "stenovault",
+        "name": "Stenovault",
+        "active": True,
+        "public": False,
+        "created_at": "2025-12-01T09:53:41.408Z"
+    },
+    "Akshayam": {
+        "id": 4,
+        "identifier": "akshayam",
+        "name": "Akshayam",
+        "active": True,
+        "public": False,
+        "created_at": "2025-12-01T09:51:02.302Z"
+    },
+    "ArcaTrueClaim": {
+        "id": 3,
+        "identifier": "arca-true-claim",
+        "name": "Arca True Claim",
+        "active": True,
+        "public": True,
+        "created_at": "2025-12-01T09:41:12.081Z"
+    }
+}
+
+
 # Resource (Static)
 @mcp.resource(
-    uri="openproject://outputs/project-details",
-    name="Cached Project Details",
-    description="Returns the locally saved project details JSON output.",
+    uri="openproject://projects",
+    name="ProjectDetails",
+    description="Get the project id, status and identifier",
     mime_type="application/json"
 )
 async def get_project_detail() -> str:
-    file_path = settings.OUTPUT_DIR / "project_details.json"
-    if not file_path.exists():
-        return json.dumps({"error": "File not found"})
-    return file_path.read_text(encoding="utf-8")
+    return list(project_details.keys())
 
-
-@mcp.resource(
-    uri="openproject://projects/active",
-    name="Active Projects List",
-    description="Fetches and returns the current active OpenProject projects.",
-    mime_type="application/json"
-)
-async def get_active_projects_resource() -> str:
-    http = op_client.get_client()
-    response = await http.get("/api/v3/projects")
-    response.raise_for_status()
-    data = response.json()
-
-    projects = [
-        {
-            "id": item.get("id"),
-            "name": item.get("name"),
-            "identifier": item.get("identifier"),
-            "active": item.get("active")
-        }
-        for item in data.get("_embedded", {}).get("elements", [])
-    ]
-    return json.dumps(projects, indent=2)
 
 # Resource (Template/Dynamic) 
 @mcp.resource(
