@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from langchain.agents import create_agent
 from langchain_openrouter import ChatOpenRouter
 from langgraph.checkpoint.memory import InMemorySaver
-from mcp_client import MCPClient
+from client.mcp_client import MCPClient
 
 from config import ROOT
 from langchain_core.utils.uuid import uuid7

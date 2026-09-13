@@ -1,5 +1,5 @@
 from config import settings, get_llmclient, ROOT, get_ollamaclient
-from  mcp_client import MCPClient
+from  client.mcp_client import MCPClient
 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException

@@ -3,7 +3,7 @@ from langchain_openrouter import ChatOpenRouter
 from langgraph.checkpoint.memory import InMemorySaver
 from langchain_core.utils.uuid import uuid7
 from config import settings, ROOT
-from mcp_client import MCPClient
+from client.mcp_client import MCPClient
 
 MODEL_NAME = "nvidia/nemotron-3-super-120b-a12b:free"
 
